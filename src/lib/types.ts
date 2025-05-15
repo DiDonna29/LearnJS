@@ -1,15 +1,38 @@
 
 // src/lib/types.ts
+import type { USER_ROLES } from "./constants"; // Ensure USER_ROLES is imported
 
-export interface User {
-  id: string; // Typically Firebase UID
+// Type for roles, derived from USER_ROLES object keys
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+
+export interface User { // Represents Firebase Auth User structure primarily
+  id: string; // Firebase UID
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
-  role: 'SIMPLE_USER' | 'PRO_USER' | 'ADMIN' | 'VISITOR';
-  createdAt?: Date; // Or string if serialized
-  updatedAt?: Date; // Or string if serialized
+  // role is typically stored in your Firestore 'users' document, not directly in Auth user object
+  // createdAt & updatedAt also from Firestore document
 }
+
+// For data stored in your Firestore 'users' collection
+export interface UserProfileData {
+  id: string; // Firebase UID, same as User.id
+  displayName: string;
+  email: string; // Can be denormalized here
+  photoURL: string | null;
+  role: UserRole;
+  address: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// For updating user profile via server action
+export interface UserProfileUpdateData {
+  displayName?: string;
+  address?: string;
+  photoURL?: string | null; // If allowing photoURL updates
+}
+
 
 export interface Course {
   id: string;
@@ -17,33 +40,32 @@ export interface Course {
   description: string;
   displayOrder?: number;
   contentLink?: string;
-  // topics?: string[]; // Topics are not currently in constants.ts for mock data
 }
 
 export interface Roadmap {
-  id: string; // e.g., 'frontend', 'backend'
+  id: string;
   title: string;
   description: string;
   courses: Course[];
-  iconName?: string; // For UI, e.g., 'MonitorSmartphone'
+  iconName?: string;
   displayOrder?: number;
 }
 
 export interface ContentItem {
   id: string;
   title: string;
-  type: 'Article' | 'Tutorial' | 'Documentation';
+  type: 'Article' | 'Tutorial' | 'Documentation'; // Keep as specific enum/union
   source: string;
   description: string;
   imageUrl: string;
   dataAiHint: string;
   category: string;
-  externalLink?: string; // Link to the actual content
-  createdAt?: Date; // Or string
+  externalLink?: string;
+  createdAt?: Date; // Firestore Timestamps will be converted to Date
 }
 
 export interface UserProgress {
-  id: string; // UUID
+  id: string; // UUID for the progress record itself
   userId: string; // Foreign Key to User.id
   courseId: string; // Foreign Key to Course.id
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -53,12 +75,12 @@ export interface UserProgress {
 }
 
 export interface AiLearningPath {
-  id: string; // UUID
+  id?: string; // Optional: Firestore will auto-generate if not provided on creation
   userId: string; // Foreign Key to User.id
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
   careerGoals: string;
   suggestedPath: string;
-  savedAt: Date;
+  savedAt: Date; // Firestore Timestamps will be converted to Date
 }
 
 export interface SubscriptionType {

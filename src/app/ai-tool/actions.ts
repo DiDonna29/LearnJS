@@ -4,62 +4,65 @@
 /**
  * @fileOverview Server Actions for AI Tool functionalities.
  */
-
-// import { dbAdmin, getUserIdFromToken } from '@/lib/firebase-admin-init'; // Uncomment for actual Firebase Admin usage
-// import { auth } from '@/lib/firebase'; // For client-side auth token
+import { dbAdmin, getUserIdFromToken } from '@/lib/firebase-admin-init';
 import type { SuggestLearningPathInput, SuggestLearningPathOutput } from '@/ai/flows/suggest-learning-path';
-import { revalidatePath } from 'next/cache';
-
+import { FieldValue } from 'firebase-admin/firestore';
+// import { revalidatePath } from 'next/cache'; // Not strictly needed unless displaying saved paths
 
 interface SavePathData {
   input: SuggestLearningPathInput;
   output: SuggestLearningPathOutput;
+  idToken?: string | null; // ID token from the client for verification
 }
 
 export async function saveAiLearningPath(
-  userId: string | null, // In a real app, you'd get this from a verified ID token or session
+  // userId parameter is now less critical if idToken is used for verification
+  // userId: string | null, 
   data: SavePathData
 ): Promise<{ success: boolean; message: string; pathId?: string }> {
   
-  if (!userId) {
-    // For this simulation, we'll allow saving even if not logged in,
-    // but in a real app, you'd likely require authentication.
-    console.log('User not logged in. Simulating saving AI learning path (not associated with a user).');
-    // return { success: false, message: "You must be logged in to save a learning path." };
-  } else {
-    console.log(`Attempting to save AI learning path for user ID (simulated): ${userId}`, data);
-  }
-
-
-  // ** IMPORTANT FOR REAL IMPLEMENTATION: **
-  // 1. If userId is required, ensure it's verified (e.g., from an ID token passed from client).
-  //    const idToken = ... // get from client
-  //    const actualUserId = await getUserIdFromToken(idToken);
-  //    if (!actualUserId) { return { success: false, message: "Authentication failed." }; }
-  //    const targetUserId = actualUserId;
-
-  // Simulate database interaction
-  // In a real application, you would use dbAdmin:
-  /*
   if (!dbAdmin) {
     console.error("Firestore Admin DB not initialized.");
     return { success: false, message: "Server error: Database not initialized." };
   }
-  try {
-    // Example: Save to a subcollection 'aiLearningPaths' under the user's document
-    // Or a top-level collection 'userAiLearningPaths' indexed by userId.
-    const pathRef = dbAdmin.collection('users').doc(targetUserId).collection('aiLearningPaths').doc(); // Auto-generate ID
-    
-    // Or, a top-level collection:
-    // const pathRef = dbAdmin.collection('userAiLearningPaths').doc(); 
 
-    await pathRef.set({
-      userId: targetUserId, // Store userId for querying if it's a top-level collection
+  let targetUserId: string | null = null;
+  if (data.idToken) {
+    targetUserId = await getUserIdFromToken(data.idToken);
+    if (!targetUserId) {
+      return { success: false, message: "Authentication failed. Could not verify user." };
+    }
+  } else {
+    // Allow saving even if not logged in (path won't be associated with a user)
+    // Or return error if login is strictly required
+    console.log('User not logged in or ID token not provided. Saving path without user association (or this could be an error).');
+    // To require login:
+    // return { success: false, message: "You must be logged in to save a learning path." };
+  }
+
+  try {
+    let pathRef;
+    const pathData = {
       experienceLevel: data.input.experienceLevel,
       careerGoals: data.input.careerGoals,
       suggestedPath: data.output.suggestedPath,
-      savedAt: new Date(), // Or FieldValue.serverTimestamp()
-    });
+      savedAt: FieldValue.serverTimestamp(),
+      ...(targetUserId && { userId: targetUserId }), // Conditionally add userId
+    };
+
+    if (targetUserId) {
+      // Save to a subcollection 'aiLearningPaths' under the user's document
+      // pathRef = dbAdmin.collection('users').doc(targetUserId).collection('aiLearningPaths').doc();
+      // OR save to a top-level collection 'aiLearningPaths'
+      pathRef = dbAdmin.collection('aiLearningPaths').doc(); // Auto-generate ID
+      await pathRef.set(pathData);
+      console.log(`AI learning path saved for user ${targetUserId} with ID: ${pathRef.id}`);
+    } else {
+      // Save to a general 'publicAiLearningPaths' collection or similar if allowing anonymous saves
+      pathRef = dbAdmin.collection('publicAiLearningPaths').doc();
+      await pathRef.set(pathData);
+      console.log(`Public AI learning path saved with ID: ${pathRef.id}`);
+    }
     
     // revalidatePath('/profile/ai-paths'); // If you have a page to list saved paths
     return { success: true, message: 'Learning path saved successfully!', pathId: pathRef.id };
@@ -67,11 +70,4 @@ export async function saveAiLearningPath(
     console.error('Error saving AI learning path to Firestore:', error);
     return { success: false, message: 'Failed to save learning path. Please try again.' };
   }
-  */
-
-  // Simulated success
-  await new Promise(resolve => setTimeout(resolve, 300)); // Simulate network delay
-  const simulatedPathId = `simulated-${Date.now()}`;
-  console.log(`Simulated saving AI learning path with ID: ${simulatedPathId}`);
-  return { success: true, message: 'AI learning path saved successfully (simulated)!', pathId: simulatedPathId };
 }

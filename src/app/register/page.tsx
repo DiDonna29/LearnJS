@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Loader2 } from 'lucide-react';
+import { initializeUserProfile } from './actions'; // Import the server action
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
@@ -41,9 +42,24 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      if (userCredential.user) {
-        await updateProfile(userCredential.user, { displayName: name });
+      const user = userCredential.user;
+
+      if (user) {
+        await updateAuthProfile(user, { displayName: name });
+
+        // Initialize user profile in Firestore
+        const profileResult = await initializeUserProfile(user.uid, user.email || '', name);
+        if (!profileResult.success) {
+          // Log error but don't necessarily block user redirection if Auth succeeded
+          console.error("Failed to initialize user profile in Firestore:", profileResult.message);
+          toast({
+            title: 'Profile Initialization Issue',
+            description: profileResult.message,
+            variant: 'destructive',
+          });
+        }
       }
+      
       toast({
         title: 'Registration Successful',
         description: 'Your account has been created. Welcome!',

@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { saveAiLearningPath } from '@/app/ai-tool/actions'; // Import the server action
 import { auth } from '@/lib/firebase'; // To get current user for saving
+import type { User as FirebaseUser } from 'firebase/auth'; // Import FirebaseUser type
 
 const formSchema = z.object({
   experienceLevel: z.enum(['beginner', 'intermediate', 'advanced'], {
@@ -37,7 +38,15 @@ export default function AiToolForm() {
   const [error, setError] = useState<string | null>(null);
   const [formDataForSave, setFormDataForSave] = useState<SuggestLearningPathInput | null>(null);
   const { toast } = useToast();
-  // const [isSavingPending, startSavingTransition] = useTransition(); // If needed for save button
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
+
+  useState(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -51,7 +60,7 @@ export default function AiToolForm() {
     setIsLoading(true);
     setSuggestion(null);
     setError(null);
-    setFormDataForSave(data as SuggestLearningPathInput); // Save form data for potential save action
+    setFormDataForSave(data as SuggestLearningPathInput); 
 
     try {
       const result = await suggestLearningPath(data as SuggestLearningPathInput);
@@ -79,18 +88,27 @@ export default function AiToolForm() {
       toast({ title: "Error", description: "No path to save.", variant: "destructive" });
       return;
     }
+    
     setIsSaving(true);
-    const currentUser = auth.currentUser;
-    // In a real app, you'd get an ID token to pass for server-side verification:
-    // const idToken = currentUser ? await currentUser.getIdToken() : null;
-    // For simulation, we pass uid directly or null. The Server Action should verify it.
-    const userId = currentUser ? currentUser.uid : null;
+    let idToken: string | null = null;
+    if (currentUser) {
+      try {
+        idToken = await currentUser.getIdToken();
+      } catch (tokenError) {
+        console.error("Error getting ID token:", tokenError);
+        toast({ title: "Authentication Error", description: "Could not verify user session. Please try logging in again.", variant: "destructive"});
+        setIsSaving(false);
+        return;
+      }
+    }
 
     try {
-      const result = await saveAiLearningPath(userId, {
+      const result = await saveAiLearningPath({ // Pass data object directly
         input: formDataForSave,
         output: suggestion,
+        idToken: idToken, // Pass the token
       });
+
       if (result.success) {
         toast({
           title: "Path Saved!",
@@ -198,12 +216,14 @@ export default function AiToolForm() {
               <div className="flex items-center gap-2">
                 <Wand2 className="text-primary"/> Your Suggested Learning Path
               </div>
-              <Button size="sm" variant="outline" onClick={handleSavePath} disabled={isSaving || !auth.currentUser}>
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save Path
-              </Button>
+              {currentUser && (
+                <Button size="sm" variant="outline" onClick={handleSavePath} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save Path
+                </Button>
+              )}
             </CardTitle>
-            {!auth.currentUser && <CardDescription className="text-xs text-muted-foreground">Log in to save your generated path.</CardDescription>}
+            {!currentUser && <CardDescription className="text-xs text-muted-foreground">Log in to save your generated path.</CardDescription>}
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{suggestion.suggestedPath}</p>
@@ -213,3 +233,4 @@ export default function AiToolForm() {
     </>
   );
 }
+
