@@ -1,6 +1,15 @@
+
 import RoadmapDisplay from '@/components/roadmaps/RoadmapDisplay';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Waypoints } from 'lucide-react';
+import { Waypoints, Loader2 } from 'lucide-react';
+import { getRoadmaps } from '@/lib/server/dataService';
+import type { Roadmap } from '@/lib/types';
+import { Suspense } from 'react';
+
+async function RoadmapsData() {
+  const roadmapsData: Roadmap[] = await getRoadmaps();
+  return <RoadmapDisplay roadmaps={roadmapsData} />;
+}
 
 export default function RoadmapsPage() {
   return (
@@ -18,7 +27,14 @@ export default function RoadmapsPage() {
           </p>
         </CardContent>
       </Card>
-      <RoadmapDisplay />
+      <Suspense fallback={
+        <div className="flex justify-center items-center min-h-[200px]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-4 text-lg">Loading roadmaps...</p>
+        </div>
+      }>
+        <RoadmapsData />
+      </Suspense>
     </div>
   );
 }

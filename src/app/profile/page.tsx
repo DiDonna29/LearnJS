@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Edit3, Shield, LogOut, Trash2, KeyRound, Loader2 } from 'lucide-react';
+import { User, Edit3, Shield, LogOut, Trash2, KeyRound, Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -23,11 +23,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { updateUserProfile } from './actions'; // Import the Server Action
 
 // Mock user data - will be partially overridden by auth data if available
-const mockUserDisplay = {
-  name: 'Alex Johnson',
-  email: 'alex.johnson@example.com',
+const mockUserDisplayDefaults = {
+  name: 'User Name', // Default if not set by auth
   userType: 'Simple User',
   avatarUrl: 'https://placehold.co/100x100.png',
   dataAiHint: 'person portrait',
@@ -38,26 +38,67 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
+
+  // Form state
+  const [displayName, setDisplayName] = useState(mockUserDisplayDefaults.name);
+  const [address, setAddress] = useState(mockUserDisplayDefaults.address);
+  const [email, setEmail] = useState('');
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        setDisplayName(currentUser.displayName || mockUserDisplayDefaults.name);
+        setEmail(currentUser.email || '');
+        // In a real app, you'd fetch address and other details from your Firestore 'users' collection
+        // For now, we use mock or allow edits.
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  const handleSaveChanges = () => {
-    toast({
-      title: "Changes Saved (Mock)",
-      description: "Your profile information has been updated (simulated).",
+  const handleSaveChanges = async () => {
+    if (!user) {
+      toast({ title: "Error", description: "You must be logged in to save changes.", variant: "destructive" });
+      return;
+    }
+    startTransition(async () => {
+      // In a real application, you would get the ID token to pass to the server action
+      // const idToken = await user.getIdToken();
+      // For simulation, we pass user.uid directly. 
+      // The Server Action itself would need to verify this token/UID.
+      const result = await updateUserProfile(user.uid, {
+        displayName: displayName,
+        address: address,
+      });
+
+      if (result.success) {
+        toast({
+          title: "Profile Updated",
+          description: result.message,
+        });
+        // Optionally, update Firebase Auth profile if display name changed client-side too,
+        // though server action should ideally handle this for consistency.
+        // if (auth.currentUser && auth.currentUser.displayName !== displayName) {
+        //   await updateProfile(auth.currentUser, { displayName });
+        // }
+      } else {
+        toast({
+          title: "Update Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
     });
   };
   
   const handlePasswordChange = () => {
     toast({
       title: "Password Change (Mock)",
-      description: "Password change process initiated (simulated). This would typically involve re-authentication.",
+      description: "Password change process initiated (simulated). This would typically involve re-authentication and Firebase SDK calls.",
     });
   }
 
@@ -102,24 +143,23 @@ export default function ProfilePage() {
     );
   }
 
-  const displayName = user.displayName || mockUserDisplay.name;
-  const displayEmail = user.email || mockUserDisplay.email;
-  const displayAvatarUrl = user.photoURL || mockUserDisplay.avatarUrl;
+  const displayAvatarUrl = user.photoURL || mockUserDisplayDefaults.avatarUrl;
+  const currentDisplayName = user.displayName || mockUserDisplayDefaults.name; // For avatar fallback
 
   return (
     <div className="space-y-8">
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center gap-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src={displayAvatarUrl} alt={displayName} data-ai-hint={mockUserDisplay.dataAiHint}/>
-            <AvatarFallback>{displayName.split(' ').map(n => n[0]).join('').toUpperCase()}</AvatarFallback>
+            <AvatarImage src={displayAvatarUrl} alt={currentDisplayName} data-ai-hint={mockUserDisplayDefaults.dataAiHint}/>
+            <AvatarFallback>{currentDisplayName.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}</AvatarFallback>
           </Avatar>
           <div>
             <CardTitle className="text-3xl flex items-center gap-3">
               <User className="h-8 w-8 text-primary" /> {displayName}'s Profile
             </CardTitle>
             <CardDescription className="text-lg">
-              Manage your account settings and preferences. Current Status: <span className="font-semibold text-primary">{mockUserDisplay.userType}</span>
+              Manage your account settings and preferences. Current Status: <span className="font-semibold text-primary">{mockUserDisplayDefaults.userType}</span>
             </CardDescription>
           </div>
         </CardHeader>
@@ -134,19 +174,22 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" defaultValue={displayName} />
+              <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isPending}/>
             </div>
             <div>
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" defaultValue={displayEmail} readOnly={!!user.email} />
+              <Input id="email" type="email" value={email} readOnly disabled />
             </div>
             <div>
               <Label htmlFor="address">Address</Label>
-              <Input id="address" defaultValue={mockUserDisplay.address} />
+              <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} disabled={isPending} />
             </div>
           </CardContent>
           <CardFooter className="justify-end">
-            <Button onClick={handleSaveChanges}>Save Changes</Button>
+            <Button onClick={handleSaveChanges} disabled={isPending}>
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save Changes
+            </Button>
           </CardFooter>
         </Card>
 
@@ -167,7 +210,7 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2"><LogOut className="text-destructive"/> Membership & Account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockUserDisplay.userType.includes('PRO') && (
+              {mockUserDisplayDefaults.userType.includes('PRO') && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" className="w-full">Cancel PRO Membership</Button>
@@ -208,14 +251,14 @@ export default function ProfilePage() {
             </CardContent>
             <CardFooter>
                 <p className="text-xs text-muted-foreground">
-                    {mockUserDisplay.userType === 'Simple User' ? "Upgrade to PRO for full access and more features!" : "Manage your subscription and account status here."}
+                    {mockUserDisplayDefaults.userType === 'Simple User' ? "Upgrade to PRO for full access and more features!" : "Manage your subscription and account status here."}
                 </p>
             </CardFooter>
           </Card>
         </div>
       </div>
        <p className="text-center text-muted-foreground mt-8">
-        This is a simplified profile page. Full functionality for user types, payments, and data persistence requires backend integration.
+        This profile page uses simulated data updates. Full functionality for user types, payments, and persistent data requires backend integration with Firestore or another database.
       </p>
     </div>
   );
