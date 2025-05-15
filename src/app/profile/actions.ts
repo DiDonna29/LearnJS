@@ -17,7 +17,8 @@ export async function fetchUserProfile(
 ): Promise<UserProfileData | null> {
   if (!dbAdmin) {
     console.error("Firestore Admin DB not initialized. Cannot fetch user profile.");
-    return null;
+    // Consider throwing an error or returning a specific error object
+    return null; 
   }
   if (!userId) {
      console.error("No user ID provided for fetching profile.");
@@ -54,9 +55,9 @@ export async function fetchUserProfile(
         try {
           const authUserRecord = await authAdmin.getUser(userId);
           // Create a basic profile in Firestore if it doesn't exist but Auth user does
-          const basicProfile = {
+          const basicProfile: UserProfileData = { // Ensure type compliance
             id: authUserRecord.uid,
-            displayName: authUserRecord.displayName || '',
+            displayName: authUserRecord.displayName || authUserRecord.email?.split('@')[0] || 'New User',
             email: authUserRecord.email || '',
             photoURL: authUserRecord.photoURL || null,
             address: '',
@@ -85,17 +86,12 @@ export async function updateUserProfile(
 ): Promise<{ success: boolean; message: string }> {
   
   if (!dbAdmin || !authAdmin) {
-    console.error("Firestore Admin DB or Auth Admin not initialized.");
-    return { success: false, message: "Server error: Services not initialized." };
+    const serviceMissing = !dbAdmin ? "Firestore Admin" : "Auth Admin";
+    console.error(`${serviceMissing} not initialized. Cannot update profile.`);
+    return { success: false, message: `Server error: ${serviceMissing} service not available.` };
   }
   
-  // In a real production app, you might verify the userId against a passed ID token
-  // const verifiedUserId = await getUserIdFromToken(idTokenFromClient);
-  // if (!verifiedUserId || verifiedUserId !== userId) {
-  //   return { success: false, message: "Authentication failed or UID mismatch." };
-  // }
-  const targetUserId = userId;
-
+  const targetUserId = userId; // Assuming userId is already verified or handled appropriately client-side
 
   try {
     const userDocRef = dbAdmin.collection('users').doc(targetUserId);
@@ -106,20 +102,24 @@ export async function updateUserProfile(
     if (data.address !== undefined) {
       firestoreUpdateData.address = data.address;
     }
-    if (data.displayName !== undefined) {
+    // Only update displayName in Firestore if it's provided
+    if (data.displayName !== undefined && data.displayName.trim() !== '') {
       firestoreUpdateData.displayName = data.displayName;
     }
-    if (data.photoURL !== undefined) {
+    if (data.photoURL !== undefined) { // Check if photoURL is part of the update
       firestoreUpdateData.photoURL = data.photoURL;
     }
 
-    await userDocRef.update(firestoreUpdateData);
+
+    if (Object.keys(firestoreUpdateData).length > 1) { // if more than just updatedAt
+        await userDocRef.update(firestoreUpdateData);
+    }
     
     const authUpdatePayload: { displayName?: string; photoURL?: string } = {};
-    if (data.displayName !== undefined) {
+    if (data.displayName !== undefined && data.displayName.trim() !== '') {
       authUpdatePayload.displayName = data.displayName;
     }
-    if (data.photoURL !== undefined) { 
+     if (data.photoURL !== undefined) { 
       authUpdatePayload.photoURL = data.photoURL;
     }
 
@@ -138,18 +138,13 @@ export async function updateUserProfile(
 
 export async function updateUserPasswordInternal(
   userId: string,
-  newPassword?: string | null // Made optional to align with potential token usage
+  newPassword?: string | null 
 ): Promise<{ success: boolean; message: string }> {
   if (!authAdmin) {
-    console.error("Auth Admin not initialized.");
-    return { success: false, message: "Server error: Auth service not initialized." };
+    console.error("Auth Admin not initialized. Cannot update password.");
+    return { success: false, message: "Server error: Auth service not available." };
   }
   
-  // In a real app, you would get userId from a verified ID token, not pass it.
-  // const verifiedUserId = await getUserIdFromToken(idTokenFromClient);
-  // if (!verifiedUserId) {
-  //   return { success: false, message: "Authentication failed. User not found or token invalid." };
-  // }
   const targetUserId = userId;
 
   if (!newPassword || newPassword.length < 6) {
@@ -160,7 +155,6 @@ export async function updateUserPasswordInternal(
     await authAdmin.updateUser(targetUserId, {
       password: newPassword,
     });
-    // No need to revalidate path as password change doesn't visually change the profile page itself immediately.
     return { success: true, message: 'Password updated successfully.' };
   } catch (error) {
     console.error('Error updating password:', error);
@@ -174,31 +168,30 @@ export async function deactivateAccount(
   userId: string 
 ): Promise<{ success: boolean; message: string }> {
   if (!authAdmin) {
-    console.error("Auth Admin not initialized.");
-    return { success: false, message: "Server error: Auth service not initialized." };
+    console.error("Auth Admin not initialized. Cannot deactivate account.");
+    return { success: false, message: "Server error: Auth service not available." };
   }
 
-  // const targetUserId = await getUserIdFromToken(idTokenFromClient);
-  // if (!targetUserId) {
-  //   return { success: false, message: "Authentication failed." };
-  // }
   const targetUserId = userId;
 
   try {
     await authAdmin.updateUser(targetUserId, {
       disabled: true,
     });
-    // Optionally, update a status in Firestore 'users' document
     if (dbAdmin) {
         await dbAdmin.collection('users').doc(targetUserId).update({ 
             status: 'deactivated', 
-            disabledAt: FieldValue.serverTimestamp() 
+            disabledAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
         });
+    } else {
+        console.warn("dbAdmin not available. Skipping Firestore update for deactivation status.");
     }
-    return { success: true, message: 'Account deactivated successfully.' };
+    revalidatePath('/profile'); // Revalidate profile to reflect changes if any
+    revalidatePath('/'); // Revalidate home to reflect logout state for header etc.
+    return { success: true, message: 'Account deactivated successfully. You will be logged out.' };
   } catch (error) {
     console.error('Error deactivating account:', error);
     return { success: false, message: 'Failed to deactivate account.' };
   }
 }
-

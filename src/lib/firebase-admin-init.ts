@@ -19,12 +19,11 @@ if (!admin.apps.length) {
     if (!projectId) console.warn('Required environment variable FIREBASE_ADMIN_PROJECT_ID is missing.');
     if (!clientEmail) console.warn('Required environment variable FIREBASE_ADMIN_CLIENT_EMAIL is missing.');
     if (!privateKeyEnv) console.warn('Required environment variable FIREBASE_ADMIN_PRIVATE_KEY is missing.');
+    // Ensure instances are null if essential config is missing
+    authAdminInstance = null;
+    dbAdminInstance = null;
   } else {
     try {
-      // Important: Ensure the private key is correctly formatted.
-      // .env files might escape newlines as \\n. This line converts them back to \n.
-      // If your key is directly copied with literal newlines, this replace might not be necessary,
-      // but it's often a good safeguard.
       const privateKey = privateKeyEnv.replace(/\\n/g, '\n');
       
       const serviceAccount: ServiceAccount = {
@@ -45,15 +44,12 @@ if (!admin.apps.length) {
       console.error('Firebase Admin SDK initialization FAILED. Error:', error.message);
       console.error('Full error object during initialization:', error);
       console.error('This usually indicates an issue with the service account credentials, especially the private key format or value.');
-      // Ensure instances remain null if initialization fails
       authAdminInstance = null;
       dbAdminInstance = null;
     }
   }
 } else {
   console.log('Firebase Admin SDK already initialized. Getting existing instances.');
-  // If apps exist, assume one is valid and try to get instances
-  // This handles hot-reloading scenarios where admin might be pre-initialized
   const mainApp = admin.apps[0]; 
   if (mainApp) {
     try {
@@ -67,6 +63,8 @@ if (!admin.apps.length) {
     }
   } else {
     console.warn('Firebase Admin SDK: admin.apps has length > 0 but no app instance could be retrieved.');
+    authAdminInstance = null;
+    dbAdminInstance = null;
   }
 }
 
