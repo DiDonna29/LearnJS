@@ -1,12 +1,16 @@
-'use client'; // Required for form handling if we make fields interactive
 
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Edit3, Shield, LogOut, Trash2, KeyRound } from 'lucide-react';
+import { User, Edit3, Shield, LogOut, Trash2, KeyRound, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -20,23 +24,30 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-
-// Mock user data - in a real app, this would come from auth/DB
-const mockUser = {
+// Mock user data - will be partially overridden by auth data if available
+const mockUserDisplay = {
   name: 'Alex Johnson',
   email: 'alex.johnson@example.com',
-  userType: 'Simple User', // Could be 'Visitor', 'Simple User', 'PRO User', 'Admin'
+  userType: 'Simple User',
   avatarUrl: 'https://placehold.co/100x100.png',
   dataAiHint: 'person portrait',
-  address: '123 Learning Lane, Dev City, JS 12345' // Example, as per request
+  address: '123 Learning Lane, Dev City, JS 12345'
 };
-
 
 export default function ProfilePage() {
   const { toast } = useToast();
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSaveChanges = () => {
-    // Placeholder for save logic
     toast({
       title: "Changes Saved (Mock)",
       description: "Your profile information has been updated (simulated).",
@@ -46,7 +57,7 @@ export default function ProfilePage() {
   const handlePasswordChange = () => {
     toast({
       title: "Password Change (Mock)",
-      description: "Password change process initiated (simulated).",
+      description: "Password change process initiated (simulated). This would typically involve re-authentication.",
     });
   }
 
@@ -64,21 +75,51 @@ export default function ProfilePage() {
     });
   }
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-lg">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
+        <User className="h-16 w-16 text-primary mb-4" />
+        <h1 className="text-2xl font-semibold mb-2">Access Denied</h1>
+        <p className="text-muted-foreground mb-6">Please log in or register to view your profile.</p>
+        <div className="space-x-4">
+          <Button asChild>
+            <Link href="/login">Login</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/register">Register</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const displayName = user.displayName || mockUserDisplay.name;
+  const displayEmail = user.email || mockUserDisplay.email;
+  const displayAvatarUrl = user.photoURL || mockUserDisplay.avatarUrl;
 
   return (
     <div className="space-y-8">
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center gap-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src={mockUser.avatarUrl} alt={mockUser.name} data-ai-hint={mockUser.dataAiHint}/>
-            <AvatarFallback>{mockUser.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+            <AvatarImage src={displayAvatarUrl} alt={displayName} data-ai-hint={mockUserDisplay.dataAiHint}/>
+            <AvatarFallback>{displayName.split(' ').map(n => n[0]).join('').toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
             <CardTitle className="text-3xl flex items-center gap-3">
-              <User className="h-8 w-8 text-primary" /> {mockUser.name}'s Profile
+              <User className="h-8 w-8 text-primary" /> {displayName}'s Profile
             </CardTitle>
             <CardDescription className="text-lg">
-              Manage your account settings and preferences. Current Status: <span className="font-semibold text-primary">{mockUser.userType}</span>
+              Manage your account settings and preferences. Current Status: <span className="font-semibold text-primary">{mockUserDisplay.userType}</span>
             </CardDescription>
           </div>
         </CardHeader>
@@ -93,15 +134,15 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" defaultValue={mockUser.name} />
+              <Input id="name" defaultValue={displayName} />
             </div>
             <div>
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" defaultValue={mockUser.email} />
+              <Input id="email" type="email" defaultValue={displayEmail} readOnly={!!user.email} />
             </div>
             <div>
               <Label htmlFor="address">Address</Label>
-              <Input id="address" defaultValue={mockUser.address} />
+              <Input id="address" defaultValue={mockUserDisplay.address} />
             </div>
           </CardContent>
           <CardFooter className="justify-end">
@@ -126,7 +167,7 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2"><LogOut className="text-destructive"/> Membership & Account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockUser.userType.includes('PRO') && (
+              {mockUserDisplay.userType.includes('PRO') && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" className="w-full">Cancel PRO Membership</Button>
@@ -167,7 +208,7 @@ export default function ProfilePage() {
             </CardContent>
             <CardFooter>
                 <p className="text-xs text-muted-foreground">
-                    {mockUser.userType === 'Simple User' ? "Upgrade to PRO for full access and more features!" : "Manage your subscription and account status here."}
+                    {mockUserDisplay.userType === 'Simple User' ? "Upgrade to PRO for full access and more features!" : "Manage your subscription and account status here."}
                 </p>
             </CardFooter>
           </Card>

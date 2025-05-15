@@ -1,6 +1,9 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Lightbulb, Users, DatabaseZap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Lightbulb, Users, DatabaseZap, UserPlus } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function AboutPage() {
   return (
@@ -35,7 +38,7 @@ export default function AboutPage() {
             <p><strong>1. Explore Roadmaps:</strong> Start by checking out our interactive roadmaps for front-end, back-end, and full-stack development. These visual guides break down complex learning into manageable stages.</p>
             <p><strong>2. Browse Curated Content:</strong> Supplement your learning with our collection of articles, tutorials, and documentation from trusted sources across the web.</p>
             <p><strong>3. Use the AI Path Builder:</strong> If you're unsure where to begin or want a personalized plan, our AI tool can suggest a learning path tailored to your experience and goals.</p>
-            <p><strong>4. (Coming Soon) Track Your Progress:</strong> Registered users will be able to mark topics as complete and see their journey unfold.</p>
+            <p><strong>4. Register & Track Progress:</strong> Create an account to save your progress, customize your learning experience, and access more features.</p>
           </CardContent>
         </Card>
         <Image 
@@ -73,9 +76,13 @@ export default function AboutPage() {
       <section className="text-center py-8">
         <h2 className="text-3xl font-semibold mb-4">Ready to Start Your Journey?</h2>
         <p className="text-lg text-muted-foreground mb-6">Join LearnJS today and take the first step towards JavaScript mastery.</p>
-        {/* Placeholder for future Sign Up button */}
-        <Button size="lg" disabled>Sign Up (Coming Soon)</Button>
+        <Button size="lg" asChild>
+          <Link href="/register">
+            <UserPlus className="mr-2 h-5 w-5" /> Sign Up Now
+          </Link>
+        </Button>
       </section>
     </div>
   );
 }
+
