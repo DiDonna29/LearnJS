@@ -1,19 +1,16 @@
+
 import ContentCard from '@/components/content/ContentCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BookOpenText, Search } from 'lucide-react';
+import { mockContent } from '@/lib/constants'; // Import centralized mock data
 
-const mockContent = [
-  { id: '1', title: 'Understanding JavaScript Closures', type: 'Article', source: 'MDN Web Docs', description: "A deep dive into closures, a fundamental concept in JavaScript.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "code editor", category: "Core Concepts" },
-  { id: '2', title: 'Asynchronous JavaScript with Async/Await', type: 'Tutorial', source: 'JavaScript.info', description: "Learn how to handle asynchronous operations gracefully using async/await.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "network nodes", category: "Asynchronous JS" },
-  { id: '3', title: 'React State Management with Hooks', type: 'Documentation', source: 'React Official Docs', description: "Official documentation on using useState and useEffect for state in React.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "react logo", category: "React" },
-  { id: '4', title: 'Building a REST API with Node.js and Express', type: 'Article', source: 'Smashing Magazine', description: "A comprehensive guide to creating backend APIs.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "server database", category: "Node.js" },
-  { id: '5', title: 'CSS Grid Layout Tutorial', type: 'Tutorial', source: 'CSS-Tricks', description: "Master the powerful CSS Grid for complex web layouts.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "layout grid", category: "CSS" },
-  { id: '6', title: 'Introduction to TypeScript', type: 'Documentation', source: 'TypeScriptLang.org', description: "Get started with TypeScript for safer JavaScript development.", imageUrl: "https://placehold.co/600x400.png", dataAiHint: "typescript logo", category: "TypeScript" },
-];
-
+// This is now a Server Component, data is fetched/imported directly
 export default function ContentPage() {
+  // In a real application, you'd fetch this data from your backend/database
+  const contentItems = mockContent;
+
   return (
     <div className="space-y-8">
       <Card className="shadow-md">
@@ -35,9 +32,9 @@ export default function ContentPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="article">Article</SelectItem>
-                <SelectItem value="tutorial">Tutorial</SelectItem>
-                <SelectItem value="documentation">Documentation</SelectItem>
+                <SelectItem value="Article">Article</SelectItem>
+                <SelectItem value="Tutorial">Tutorial</SelectItem>
+                <SelectItem value="Documentation">Documentation</SelectItem>
               </SelectContent>
             </Select>
             <Select>
@@ -46,23 +43,32 @@ export default function ContentPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="core">Core Concepts</SelectItem>
-                <SelectItem value="async">Asynchronous JS</SelectItem>
-                <SelectItem value="react">React</SelectItem>
-                <SelectItem value="node">Node.js</SelectItem>
-                <SelectItem value="css">CSS</SelectItem>
-                <SelectItem value="ts">TypeScript</SelectItem>
+                {/* Dynamically generate categories if needed, or list them */}
+                <SelectItem value="Core Concepts">Core Concepts</SelectItem>
+                <SelectItem value="Asynchronous JS">Asynchronous JS</SelectItem>
+                <SelectItem value="React">React</SelectItem>
+                <SelectItem value="Node.js">Node.js</SelectItem>
+                <SelectItem value="CSS">CSS</SelectItem>
+                <SelectItem value="TypeScript">TypeScript</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockContent.map((content) => (
-          <ContentCard key={content.id} {...content} />
-        ))}
-      </div>
+      {contentItems.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {contentItems.map((content) => (
+            <ContentCard key={content.id} {...content} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            <p>No content available at the moment. Please check back later.</p>
+          </CardContent>
+        </Card>
+      )}
        <p className="text-center text-muted-foreground mt-8">
         More content coming soon! Simple users can view limited content. Upgrade to PRO for full access.
       </p>
