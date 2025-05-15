@@ -1,7 +1,5 @@
 
 'use client';
-
-import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { User as FirebaseUser, onAuthStateChanged, sendPasswordResetEmail, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -25,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { updateUserProfile, deactivateAccount, fetchUserProfile, updateUserPasswordInternal } from './actions'; 
 import type { UserProfileData, UserProfileUpdateData } from '@/lib/types';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
 
 const mockUserDisplayDefaults = { 
   name: 'User Name',
@@ -37,7 +35,6 @@ const mockUserDisplayDefaults = {
 
 export default function ProfilePage() {
   const { toast } = useToast();
-  const router = useRouter();
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   
@@ -190,7 +187,7 @@ export default function ProfilePage() {
     startDeactivationTransition(async () => {
       const result = await deactivateAccount(authUser.uid);
       if (result.success) {
-        toast({ title: "Account Deactivated", description: result.message });
+        toast({ title: "Account Deactivated", description: result.message, variant: "default" });
         await signOut(auth); 
         router.push('/'); 
       } else {

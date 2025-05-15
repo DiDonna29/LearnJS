@@ -3,43 +3,90 @@
 import admin from 'firebase-admin';
 import type { ServiceAccount } from 'firebase-admin';
 
-// Ensure this is only initialized once
+let authAdminInstance: admin.auth.Auth | null = null;
+let dbAdminInstance: admin.firestore.Firestore | null = null;
+
 if (!admin.apps.length) {
-  try {
-    const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !privateKey) {
-      console.warn(
-        'Firebase Admin SDK not initialized. Missing environment variables: FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY. Server-side Firebase operations will not work.'
-      );
-    } else {
+  console.log('Attempting to initialize Firebase Admin SDK...');
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKeyEnv = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+
+  if (!projectId || !clientEmail || !privateKeyEnv) {
+    console.warn(
+      'Firebase Admin SDK CANNOT be initialized. Missing one or more environment variables: FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY. Server-side Firebase operations will FAIL.'
+    );
+    if (!projectId) console.warn('Required environment variable FIREBASE_ADMIN_PROJECT_ID is missing.');
+    if (!clientEmail) console.warn('Required environment variable FIREBASE_ADMIN_CLIENT_EMAIL is missing.');
+    if (!privateKeyEnv) console.warn('Required environment variable FIREBASE_ADMIN_PRIVATE_KEY is missing.');
+  } else {
+    try {
+      // Important: Ensure the private key is correctly formatted.
+      // .env files might escape newlines as \\n. This line converts them back to \n.
+      // If your key is directly copied with literal newlines, this replace might not be necessary,
+      // but it's often a good safeguard.
+      const privateKey = privateKeyEnv.replace(/\\n/g, '\n');
+      
       const serviceAccount: ServiceAccount = {
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        projectId: projectId,
+        clientEmail: clientEmail,
         privateKey: privateKey,
       };
+
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
+
       console.log('Firebase Admin SDK initialized successfully.');
+      authAdminInstance = admin.auth();
+      dbAdminInstance = admin.firestore();
+
+    } catch (error: any) {
+      console.error('Firebase Admin SDK initialization FAILED. Error:', error.message);
+      console.error('Full error object during initialization:', error);
+      console.error('This usually indicates an issue with the service account credentials, especially the private key format or value.');
+      // Ensure instances remain null if initialization fails
+      authAdminInstance = null;
+      dbAdminInstance = null;
     }
-  } catch (error) {
-    console.error('Firebase Admin SDK initialization error:', error);
+  }
+} else {
+  console.log('Firebase Admin SDK already initialized. Getting existing instances.');
+  // If apps exist, assume one is valid and try to get instances
+  // This handles hot-reloading scenarios where admin might be pre-initialized
+  const mainApp = admin.apps[0]; 
+  if (mainApp) {
+    try {
+      authAdminInstance = admin.auth(mainApp);
+      dbAdminInstance = admin.firestore(mainApp);
+      console.log('Retrieved existing Firebase Admin SDK instances.');
+    } catch (error: any) {
+        console.error('Error retrieving existing Firebase Admin SDK instances:', error.message);
+        authAdminInstance = null;
+        dbAdminInstance = null;
+    }
+  } else {
+    console.warn('Firebase Admin SDK: admin.apps has length > 0 but no app instance could be retrieved.');
   }
 }
 
-export const authAdmin = admin.apps.length ? admin.auth() : null;
-export const dbAdmin = admin.apps.length ? admin.firestore() : null;
+export const authAdmin = authAdminInstance;
+export const dbAdmin = dbAdminInstance;
 
 export async function getUserIdFromToken(idToken: string | undefined | null): Promise<string | null> {
-  if (!idToken || !authAdmin) {
-    console.log('getUserIdFromToken: No ID token or authAdmin not available.');
+  if (!idToken ) {
+    console.log('getUserIdFromToken: No ID token provided.');
+    return null;
+  }
+  if (!authAdmin) {
+    console.error('getUserIdFromToken: Firebase Auth Admin is not initialized. Cannot verify ID token.');
     return null;
   }
   try {
     const decodedToken = await authAdmin.verifyIdToken(idToken);
     return decodedToken.uid;
   } catch (error) {
-    console.error('Error verifying ID token:', error);
+    console.error('Error verifying ID token in getUserIdFromToken:', error);
     return null;
   }
 }
