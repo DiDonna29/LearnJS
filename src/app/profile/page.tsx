@@ -3,14 +3,14 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { User as FirebaseUser, onAuthStateChanged, sendPasswordResetEmail, signOut } from 'firebase/auth';
+import { User as FirebaseUser, onAuthStateChanged, sendPasswordResetEmail, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Edit3, Shield, LogOut, Trash2, KeyRound, Loader2, Save } from 'lucide-react';
+import { User, Edit3, Shield, LogOut, Trash2, KeyRound, Loader2, Save, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -23,16 +23,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { updateUserProfile, deactivateAccount, fetchUserProfile } from './actions'; // Import Server Actions
+import { updateUserProfile, deactivateAccount, fetchUserProfile, updateUserPasswordInternal } from './actions'; 
 import type { UserProfileData, UserProfileUpdateData } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
-const mockUserDisplayDefaults = { // Kept for fallback UI elements if needed
+const mockUserDisplayDefaults = { 
   name: 'User Name',
   userType: 'Simple User',
   avatarUrl: 'https://placehold.co/100x100.png',
   dataAiHint: 'person portrait',
-  address: '' // Default empty address
+  address: ''
 };
 
 export default function ProfilePage() {
@@ -45,31 +45,40 @@ export default function ProfilePage() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [isUpdatingProfile, startUpdateTransition] = useTransition();
   const [isDeactivating, startDeactivationTransition] = useTransition();
+  const [isChangingPassword, startPasswordChangeTransition] = useTransition();
 
-  // Form state
+  // Form state for personal info
   const [displayName, setDisplayName] = useState('');
   const [address, setAddress] = useState('');
-  const [email, setEmail] = useState('');
-  const [photoURL, setPhotoURL] = useState('');
+  const [email, setEmail] = useState(''); // Email is read-only but displayed
+  const [photoURL, setPhotoURL] = useState(''); // Avatar URL
+
+  // State for password change form
+  const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
-        setEmail(user.email || ''); // Set email from Auth user
+        setEmail(user.email || ''); 
         setIsFetchingProfile(true);
         try {
-          // In a real app, pass ID token: const idToken = await user.getIdToken();
-          const fetchedProfile = await fetchUserProfile(user.uid); // Pass UID
+          const fetchedProfile = await fetchUserProfile(user.uid); 
           setProfileData(fetchedProfile);
-          // Initialize form fields after profile data is fetched
           setDisplayName(fetchedProfile?.displayName || user.displayName || mockUserDisplayDefaults.name);
           setAddress(fetchedProfile?.address || mockUserDisplayDefaults.address);
           setPhotoURL(fetchedProfile?.photoURL || user.photoURL || mockUserDisplayDefaults.avatarUrl);
         } catch (e) {
           console.error("Error fetching profile data:", e);
           toast({ title: "Error", description: "Could not load profile data.", variant: "destructive" });
-          // Fallback form field initialization
           setDisplayName(user.displayName || mockUserDisplayDefaults.name);
           setAddress(mockUserDisplayDefaults.address);
           setPhotoURL(user.photoURL || mockUserDisplayDefaults.avatarUrl);
@@ -77,12 +86,12 @@ export default function ProfilePage() {
           setIsFetchingProfile(false);
         }
       } else {
-        // No user, clear all data
         setProfileData(null);
         setDisplayName('');
         setAddress('');
         setEmail('');
         setPhotoURL('');
+        setShowPasswordChangeForm(false); // Hide password form on logout
         setIsFetchingProfile(false);
       }
       setLoadingAuth(false);
@@ -97,18 +106,16 @@ export default function ProfilePage() {
       return;
     }
     startUpdateTransition(async () => {
-      // const idToken = await authUser.getIdToken(); // For server action verification
       const updateData: UserProfileUpdateData = {
         displayName: displayName,
         address: address,
-        // photoURL: photoURL, // Add if photo upload is implemented
+        // photoURL can be added if upload functionality is implemented
       };
-      // Pass authUser.uid for now, server action should verify token in real app.
       const result = await updateUserProfile(authUser.uid, updateData);
 
       if (result.success) {
         toast({ title: "Profile Updated", description: result.message });
-        // Optionally, trigger a re-fetch or update local state if revalidatePath isn't immediate enough
+        // Refresh profile data from server
         const refreshedProfile = await fetchUserProfile(authUser.uid);
         setProfileData(refreshedProfile);
         if (refreshedProfile) {
@@ -116,44 +123,76 @@ export default function ProfilePage() {
              setAddress(refreshedProfile.address || '');
              setPhotoURL(refreshedProfile.photoURL || authUser.photoURL || mockUserDisplayDefaults.avatarUrl);
         }
-
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
       }
     });
   };
   
-  const handlePasswordChange = async () => {
+  const handleTogglePasswordForm = () => {
+    setShowPasswordChangeForm(!showPasswordChangeForm);
+    setPasswordChangeError(null); // Clear previous errors
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+  }
+
+  const handleChangePasswordSubmit = async () => {
     if (!authUser || !authUser.email) {
-      toast({ title: "Error", description: "Email address not found for password reset.", variant: "destructive" });
+      setPasswordChangeError("User not properly authenticated.");
+      toast({ title: "Error", description: "User not properly authenticated.", variant: "destructive" });
       return;
     }
-    try {
-      await sendPasswordResetEmail(auth, authUser.email);
-      toast({
-        title: "Password Reset Email Sent",
-        description: "Check your inbox for instructions to reset your password.",
-      });
-    } catch (error) {
-      console.error("Password reset error:", error);
-      toast({
-        title: "Password Reset Failed",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+    if (newPassword.length < 6) {
+      setPasswordChangeError("New password must be at least 6 characters long.");
+      toast({ title: "Password Too Short", description: "New password must be at least 6 characters long.", variant: "destructive" });
+      return;
     }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeError("New passwords do not match.");
+      toast({ title: "Password Mismatch", description: "New passwords do not match.", variant: "destructive" });
+      return;
+    }
+    setPasswordChangeError(null);
+
+    startPasswordChangeTransition(async () => {
+      try {
+        const credential = EmailAuthProvider.credential(authUser.email!, currentPassword);
+        await reauthenticateWithCredential(authUser, credential);
+        
+        // Re-authentication successful, now call server action to update password
+        const result = await updateUserPasswordInternal(authUser.uid, newPassword);
+
+        if (result.success) {
+          toast({ title: "Password Changed", description: "Your password has been updated successfully." });
+          setShowPasswordChangeForm(false);
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+        } else {
+          setPasswordChangeError(result.message);
+          toast({ title: "Password Change Failed", description: result.message, variant: "destructive" });
+        }
+      } catch (reauthError: any) {
+        console.error("Re-authentication error:", reauthError);
+        let errorMessage = "Failed to re-authenticate. Please check your current password.";
+        if (reauthError.code === 'auth/wrong-password' || reauthError.code === 'auth/invalid-credential') {
+          errorMessage = "Incorrect current password.";
+        }
+        setPasswordChangeError(errorMessage);
+        toast({ title: "Re-authentication Failed", description: errorMessage, variant: "destructive" });
+      }
+    });
   };
 
   const handleAccountDeactivation = async () => {
     if (!authUser) return;
     startDeactivationTransition(async () => {
-      // const idToken = await authUser.getIdToken();
-      // Pass authUser.uid for now
       const result = await deactivateAccount(authUser.uid);
       if (result.success) {
         toast({ title: "Account Deactivated", description: result.message });
-        await signOut(auth); // Sign out client-side
-        router.push('/'); // Redirect to home
+        await signOut(auth); 
+        router.push('/'); 
       } else {
         toast({ title: "Deactivation Failed", description: result.message, variant: "destructive" });
       }
@@ -166,7 +205,6 @@ export default function ProfilePage() {
       description: "Membership cancellation/downgrade process initiated (simulated). This would involve backend logic for subscriptions.",
     });
   };
-
 
   if (loadingAuth || (authUser && isFetchingProfile)) {
     return (
@@ -237,12 +275,6 @@ export default function ProfilePage() {
               <Label htmlFor="address">Address</Label>
               <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} disabled={isUpdatingProfile} placeholder="e.g., 123 Main St, Anytown, USA" />
             </div>
-            {/* Photo URL input could be added if direct URL editing or upload is supported
-            <div>
-              <Label htmlFor="photoURLInput">Photo URL (optional)</Label>
-              <Input id="photoURLInput" value={photoURL} onChange={(e) => setPhotoURL(e.target.value)} disabled={isUpdatingProfile} placeholder="https://example.com/avatar.png" />
-            </div>
-            */}
           </CardContent>
           <CardFooter className="justify-end">
             <Button onClick={handleSaveChanges} disabled={isUpdatingProfile}>
@@ -257,10 +289,69 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/> Account Security</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full" onClick={handlePasswordChange} disabled={isUpdatingProfile || isDeactivating}>
-                <KeyRound className="mr-2 h-4 w-4"/> Change Password
+            <CardContent className="space-y-4">
+              <Button variant="outline" className="w-full" onClick={handleTogglePasswordForm} disabled={isUpdatingProfile || isDeactivating || isChangingPassword}>
+                <KeyRound className="mr-2 h-4 w-4"/> {showPasswordChangeForm ? 'Cancel Password Change' : 'Change Password'}
               </Button>
+              
+              {showPasswordChangeForm && (
+                <div className="space-y-4 pt-4 border-t mt-4">
+                  <h3 className="text-md font-semibold">Update Your Password</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="currentPassword" 
+                        type={showCurrentPassword ? "text" : "password"} 
+                        value={currentPassword} 
+                        onChange={(e) => setCurrentPassword(e.target.value)} 
+                        disabled={isChangingPassword}
+                        placeholder="Enter current password"
+                      />
+                       <Button variant="ghost" size="icon" type="button" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
+                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                     <div className="relative">
+                      <Input 
+                        id="newPassword" 
+                        type={showNewPassword ? "text" : "password"} 
+                        value={newPassword} 
+                        onChange={(e) => setNewPassword(e.target.value)} 
+                        disabled={isChangingPassword}
+                        placeholder="Enter new password (min. 6 chars)"
+                      />
+                      <Button variant="ghost" size="icon" type="button" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowNewPassword(!showNewPassword)}>
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="confirmNewPassword" 
+                        type={showConfirmNewPassword ? "text" : "password"}
+                        value={confirmNewPassword} 
+                        onChange={(e) => setConfirmNewPassword(e.target.value)} 
+                        disabled={isChangingPassword}
+                        placeholder="Confirm new password"
+                      />
+                       <Button variant="ghost" size="icon" type="button" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}>
+                        {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  {passwordChangeError && <p className="text-sm text-destructive">{passwordChangeError}</p>}
+                  <Button className="w-full" onClick={handleChangePasswordSubmit} disabled={isChangingPassword}>
+                    {isChangingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save New Password
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -269,10 +360,10 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2"><LogOut className="text-destructive"/> Membership & Account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(profileData?.role === 'PRO_USER') && ( // Check actual role from Firestore
+              {(profileData?.role === 'PRO_USER') && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="w-full" disabled={isUpdatingProfile || isDeactivating}>Cancel PRO Membership</Button>
+                    <Button variant="outline" className="w-full" disabled={isUpdatingProfile || isDeactivating || isChangingPassword}>Cancel PRO Membership</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
@@ -290,7 +381,7 @@ export default function ProfilePage() {
               )}
                <AlertDialog>
                   <AlertDialogTrigger asChild>
-                     <Button variant="destructive" className="w-full" disabled={isUpdatingProfile || isDeactivating}>
+                     <Button variant="destructive" className="w-full" disabled={isUpdatingProfile || isDeactivating || isChangingPassword}>
                         <Trash2 className="mr-2 h-4 w-4"/> Deactivate Account
                       </Button>
                   </AlertDialogTrigger>
@@ -324,3 +415,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

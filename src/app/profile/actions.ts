@@ -13,20 +13,12 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 
 export async function fetchUserProfile(
-  // In a real app, you'd pass an ID token from the client
-  // and verify it here to get the targetUserId
-  // idToken: string | undefined
-  userId: string // For now, assuming userId is securely obtained or for direct fetch
+  userId: string 
 ): Promise<UserProfileData | null> {
   if (!dbAdmin) {
     console.error("Firestore Admin DB not initialized. Cannot fetch user profile.");
     return null;
   }
-  // const targetUserId = await getUserIdFromToken(idToken);
-  // if (!targetUserId) {
-  //   console.error("Authentication failed or no user ID found from token.");
-  //   return null;
-  // }
   if (!userId) {
      console.error("No user ID provided for fetching profile.");
     return null;
@@ -38,7 +30,6 @@ export async function fetchUserProfile(
 
     if (docSnap.exists) {
       const data = docSnap.data();
-      // Fetch auth data for the most up-to-date email and photoURL from Firebase Auth
       let authUserRecord;
       if (authAdmin) {
         try {
@@ -56,24 +47,28 @@ export async function fetchUserProfile(
         address: data?.address || '',
         role: data?.role || USER_ROLES.SIMPLE,
         createdAt: data?.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        // Any other custom fields from your Firestore 'users' document
       };
     } else {
       console.log(`User profile document not found for UID: ${userId}`);
-      // Optionally, try to fetch from Auth directly if Firestore doc is missing
       if (authAdmin) {
         try {
           const authUserRecord = await authAdmin.getUser(userId);
-          return {
+          // Create a basic profile in Firestore if it doesn't exist but Auth user does
+          const basicProfile = {
             id: authUserRecord.uid,
             displayName: authUserRecord.displayName || '',
             email: authUserRecord.email || '',
             photoURL: authUserRecord.photoURL || null,
-            address: '', // No address in Auth
-            role: USER_ROLES.SIMPLE, // Default role
+            address: '',
+            role: USER_ROLES.SIMPLE,
             createdAt: new Date(authUserRecord.metadata.creationTime || Date.now()),
+            updatedAt: new Date(authUserRecord.metadata.lastSignInTime || Date.now())
           };
-        } catch (e) { /* ignore if not found in Auth either */ }
+          await dbAdmin.collection('users').doc(authUserRecord.uid).set(basicProfile, {merge: true});
+          return basicProfile;
+        } catch (e) { 
+           console.error(`User ${userId} not found in Auth either after missing in Firestore.`, e);
+        }
       }
       return null;
     }
@@ -85,9 +80,7 @@ export async function fetchUserProfile(
 
 
 export async function updateUserProfile(
-  // In a real app, you'd pass an ID token from the client
-  // idToken: string | undefined,
-  userId: string, // Temporarily passing userId directly
+  userId: string, 
   data: UserProfileUpdateData
 ): Promise<{ success: boolean; message: string }> {
   
@@ -95,12 +88,12 @@ export async function updateUserProfile(
     console.error("Firestore Admin DB or Auth Admin not initialized.");
     return { success: false, message: "Server error: Services not initialized." };
   }
-
-  // const targetUserId = await getUserIdFromToken(idToken);
-  // if (!targetUserId) {
-  //   return { success: false, message: "Authentication failed. User not found or token invalid." };
+  
+  // In a real production app, you might verify the userId against a passed ID token
+  // const verifiedUserId = await getUserIdFromToken(idTokenFromClient);
+  // if (!verifiedUserId || verifiedUserId !== userId) {
+  //   return { success: false, message: "Authentication failed or UID mismatch." };
   // }
-  // For simulation, we use the passed userId directly, assuming it's verified.
   const targetUserId = userId;
 
 
@@ -108,28 +101,25 @@ export async function updateUserProfile(
     const userDocRef = dbAdmin.collection('users').doc(targetUserId);
     
     const firestoreUpdateData: Record<string, any> = {
-      address: data.address,
       updatedAt: FieldValue.serverTimestamp(),
     };
-
-    // Only update displayName in Firestore if it's part of the UserProfileUpdateData
+    if (data.address !== undefined) {
+      firestoreUpdateData.address = data.address;
+    }
     if (data.displayName !== undefined) {
       firestoreUpdateData.displayName = data.displayName;
     }
-    // Only update photoURL in Firestore if it's part of the UserProfileUpdateData
-     if (data.photoURL !== undefined) {
+    if (data.photoURL !== undefined) {
       firestoreUpdateData.photoURL = data.photoURL;
     }
 
-
     await userDocRef.update(firestoreUpdateData);
     
-    // Update Firebase Auth display name and photoURL if they changed
     const authUpdatePayload: { displayName?: string; photoURL?: string } = {};
     if (data.displayName !== undefined) {
       authUpdatePayload.displayName = data.displayName;
     }
-    if (data.photoURL !== undefined) { // Assuming photoURL might be part of UserProfileUpdateData
+    if (data.photoURL !== undefined) { 
       authUpdatePayload.photoURL = data.photoURL;
     }
 
@@ -146,17 +136,49 @@ export async function updateUserProfile(
   }
 }
 
+export async function updateUserPasswordInternal(
+  userId: string,
+  newPassword?: string | null // Made optional to align with potential token usage
+): Promise<{ success: boolean; message: string }> {
+  if (!authAdmin) {
+    console.error("Auth Admin not initialized.");
+    return { success: false, message: "Server error: Auth service not initialized." };
+  }
+  
+  // In a real app, you would get userId from a verified ID token, not pass it.
+  // const verifiedUserId = await getUserIdFromToken(idTokenFromClient);
+  // if (!verifiedUserId) {
+  //   return { success: false, message: "Authentication failed. User not found or token invalid." };
+  // }
+  const targetUserId = userId;
+
+  if (!newPassword || newPassword.length < 6) {
+     return { success: false, message: "New password must be at least 6 characters long." };
+  }
+
+  try {
+    await authAdmin.updateUser(targetUserId, {
+      password: newPassword,
+    });
+    // No need to revalidate path as password change doesn't visually change the profile page itself immediately.
+    return { success: true, message: 'Password updated successfully.' };
+  } catch (error) {
+    console.error('Error updating password:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update password.';
+    return { success: false, message: errorMessage };
+  }
+}
+
+
 export async function deactivateAccount(
-  // In a real app, pass ID token
-  // idToken: string | undefined
-  userId: string // Temporarily passing userId directly
+  userId: string 
 ): Promise<{ success: boolean; message: string }> {
   if (!authAdmin) {
     console.error("Auth Admin not initialized.");
     return { success: false, message: "Server error: Auth service not initialized." };
   }
 
-  // const targetUserId = await getUserIdFromToken(idToken);
+  // const targetUserId = await getUserIdFromToken(idTokenFromClient);
   // if (!targetUserId) {
   //   return { success: false, message: "Authentication failed." };
   // }
@@ -166,14 +188,17 @@ export async function deactivateAccount(
     await authAdmin.updateUser(targetUserId, {
       disabled: true,
     });
-    // Optionally, you might want to update a status in your Firestore 'users' document as well.
-    // e.g., dbAdmin.collection('users').doc(targetUserId).update({ status: 'deactivated', disabledAt: FieldValue.serverTimestamp() });
-
-    // Revalidating path might not be useful if user is logged out immediately
-    // revalidatePath('/profile'); 
+    // Optionally, update a status in Firestore 'users' document
+    if (dbAdmin) {
+        await dbAdmin.collection('users').doc(targetUserId).update({ 
+            status: 'deactivated', 
+            disabledAt: FieldValue.serverTimestamp() 
+        });
+    }
     return { success: true, message: 'Account deactivated successfully.' };
   } catch (error) {
     console.error('Error deactivating account:', error);
     return { success: false, message: 'Failed to deactivate account.' };
   }
 }
+
