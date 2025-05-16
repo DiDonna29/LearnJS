@@ -7,22 +7,22 @@
 
 import { dbAdmin } from '@/lib/firebase-admin-init';
 import type { Roadmap, ContentItem, UserProfileData } from '@/lib/types';
-import { USER_ROLES } from '@/lib/constants'; // Assuming USER_ROLES is defined in constants
+import { USER_ROLES, roadmaps as mockRoadmaps, mockContent as fallbackMockContent } from '@/lib/constants'; // Assuming USER_ROLES is defined in constants
 
 // Simulate network delay - can be removed for production
 // const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function getRoadmaps(): Promise<Roadmap[]> {
-  // console.log("Fetching roadmaps from Firestore...");
   if (!dbAdmin) {
-    console.error("Firestore Admin DB not initialized. Cannot fetch roadmaps.");
-    return []; // Or throw an error
+    console.warn("Firestore Admin DB not initialized. Returning mock roadmaps.");
+    return mockRoadmaps;
   }
   try {
+    // console.log("Fetching roadmaps from Firestore...");
     const roadmapsSnapshot = await dbAdmin.collection('roadmaps').orderBy('displayOrder', 'asc').get();
     if (roadmapsSnapshot.empty) {
-      console.log("No roadmaps found in Firestore.");
-      return [];
+      console.warn("No roadmaps found in Firestore. Returning mock roadmaps.");
+      return mockRoadmaps;
     }
     const roadmaps = roadmapsSnapshot.docs.map(doc => {
       const data = doc.data();
@@ -32,7 +32,7 @@ export async function getRoadmaps(): Promise<Roadmap[]> {
         description: data.description || '',
         iconName: data.iconName || 'GitFork',
         displayOrder: data.displayOrder || 0,
-        courses: (data.courses || []).map((course: any, index: number) => ({ // Basic typing for course from DB
+        courses: (data.courses || []).map((course: any, index: number) => ({
           id: course.id || `course-${index}`,
           title: course.title || '',
           description: course.description || '',
@@ -43,24 +43,22 @@ export async function getRoadmaps(): Promise<Roadmap[]> {
     });
     return roadmaps;
   } catch (error) {
-    console.error("Error fetching roadmaps from Firestore:", error);
-    // Depending on your error handling strategy, you might throw the error
-    // or return an empty array / cached data / mock data
-    return []; 
+    console.error("Error fetching roadmaps from Firestore. Returning mock roadmaps.", error);
+    return mockRoadmaps; 
   }
 }
 
 export async function getContentItems(): Promise<ContentItem[]> {
-  // console.log("Fetching content items from Firestore...");
    if (!dbAdmin) {
-    console.error("Firestore Admin DB not initialized. Cannot fetch content items.");
-    return [];
+    console.warn("Firestore Admin DB not initialized. Returning mock content items.");
+    return fallbackMockContent;
   }
   try {
+    // console.log("Fetching content items from Firestore...");
     const contentSnapshot = await dbAdmin.collection('contentItems').orderBy('createdAt', 'desc').get();
     if (contentSnapshot.empty) {
-      console.log("No content items found in Firestore.");
-      return [];
+      console.warn("No content items found in Firestore. Returning mock content items.");
+      return fallbackMockContent;
     }
     const contentItems = contentSnapshot.docs.map(doc => {
       const data = doc.data();
@@ -74,13 +72,13 @@ export async function getContentItems(): Promise<ContentItem[]> {
         dataAiHint: data.dataAiHint || 'code abstract',
         category: data.category || 'General',
         externalLink: data.externalLink || undefined,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(), // Handle Timestamp
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
       } as ContentItem;
     });
     return contentItems;
   } catch (error) {
-    console.error("Error fetching content items from Firestore:", error);
-    return [];
+    console.error("Error fetching content items from Firestore. Returning mock content items.", error);
+    return fallbackMockContent;
   }
 }
 
@@ -102,15 +100,17 @@ export async function getUserProfile(userId: string): Promise<UserProfileData | 
       return {
         id: userDocSnap.id,
         displayName: data?.displayName || '',
-        email: data?.email || '', // Email should be from Auth ideally but can be stored here
+        email: data?.email || '', 
         photoURL: data?.photoURL || null,
         address: data?.address || '',
-        role: data?.role || USER_ROLES.SIMPLE, // Default to SIMPLE if not set
+        role: data?.role || USER_ROLES.SIMPLE, 
         createdAt: data?.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        // any other fields you store in the user's Firestore document
       } as UserProfileData;
     } else {
-      console.log(`No profile document found for user ${userId}.`);
+      console.log(`No profile document found for user ${userId}. Attempting to fetch from Auth to create basic profile.`);
+      // Fallback: If Firestore profile doesn't exist, but Auth user might, try to create one.
+      // This part might be better handled directly in fetchUserProfile in actions.ts
+      // For now, dataService assumes it's mainly for reading existing profiles.
       return null;
     }
   } catch (error) {
@@ -121,8 +121,8 @@ export async function getUserProfile(userId: string): Promise<UserProfileData | 
 
 export async function getRoadmapById(id: string): Promise<Roadmap | null> {
   if (!dbAdmin) {
-    console.error("Firestore Admin DB not initialized. Cannot fetch roadmap.");
-    return null;
+    console.warn(`Firestore Admin DB not initialized. Cannot fetch roadmap ${id}. Attempting to find in mock data.`);
+    return mockRoadmaps.find(r => r.id === id) || null;
   }
   try {
     const docRef = dbAdmin.collection('roadmaps').doc(id);
@@ -144,10 +144,10 @@ export async function getRoadmapById(id: string): Promise<Roadmap | null> {
         }))
       } as Roadmap;
     }
-    console.log(`Roadmap with id ${id} not found.`);
-    return null;
+    console.warn(`Roadmap with id ${id} not found in Firestore. Attempting to find in mock data.`);
+    return mockRoadmaps.find(r => r.id === id) || null;
   } catch (error) {
     console.error(`Error fetching roadmap ${id} from Firestore:`, error);
-    return null;
+    return mockRoadmaps.find(r => r.id === id) || null;
   }
 }

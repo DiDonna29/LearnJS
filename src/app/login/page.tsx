@@ -31,7 +31,7 @@ export default function LoginPage() {
         title: 'Login Successful',
         description: 'Welcome back!',
       });
-      router.push('/profile'); // Redirect to profile or dashboard
+      router.push('/'); // Redirect to home page
     } catch (err) {
       console.error("Login error:", err);
       const firebaseError = err as { code?: string; message?: string };

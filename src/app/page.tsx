@@ -1,8 +1,10 @@
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight, Brain, Waypoints } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import WelcomeUser from '@/components/home/WelcomeUser'; // Import the new component
 
 export default function HomePage() {
   return (
@@ -12,6 +14,12 @@ export default function HomePage() {
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
           Navigate your path from beginner to JavaScript expert with interactive roadmaps, curated content, and AI-powered learning suggestions.
         </p>
+        
+        {/* WelcomeUser will render here if user is logged in, or nothing if not */}
+        <WelcomeUser />
+
+        {/* Conditional rendering for main CTA buttons if WelcomeUser doesn't show its own */}
+        {/* For now, keeping these always visible, WelcomeUser will be an addition */}
         <div className="space-x-4">
           <Button size="lg" asChild>
             <Link href="/roadmaps">Explore Roadmaps <Waypoints className="ml-2 h-5 w-5" /></Link>
