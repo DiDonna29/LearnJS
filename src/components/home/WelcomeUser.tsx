@@ -9,7 +9,7 @@ import { fetchUserProfile } from '@/app/profile/actions';
 import type { UserProfileData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, ArrowRight, Brain, Waypoints, Loader2 } from 'lucide-react';
+import { User, Brain, Waypoints, BookOpenText, Loader2 } from 'lucide-react';
 
 export default function WelcomeUser() {
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
@@ -30,9 +30,8 @@ export default function WelcomeUser() {
             id: user.uid,
             displayName: user.displayName || "Learner",
             email: user.email || "",
-            // Fill other fields with defaults or leave as is
             photoURL: user.photoURL,
-            role: 'Simple User',
+            role: 'SIMPLE', // Default role from type
             address: '',
             createdAt: new Date(),
           });
@@ -67,7 +66,7 @@ export default function WelcomeUser() {
         </CardHeader>
         <CardContent className="grid md:grid-cols-2 gap-4">
           <Link href="/profile" passHref>
-            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group">
+            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group hover:bg-accent/50 hover:border-primary transition-all duration-200">
               <User className="mr-3 h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
               <div>
                 <p className="font-semibold">Your Profile</p>
@@ -76,7 +75,7 @@ export default function WelcomeUser() {
             </Button>
           </Link>
           <Link href="/ai-tool" passHref>
-            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group">
+            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group hover:bg-accent/50 hover:border-primary transition-all duration-200">
               <Brain className="mr-3 h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
                <div>
                 <p className="font-semibold">AI Path Builder</p>
@@ -85,7 +84,7 @@ export default function WelcomeUser() {
             </Button>
           </Link>
            <Link href="/roadmaps" passHref>
-            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group">
+            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group hover:bg-accent/50 hover:border-primary transition-all duration-200">
               <Waypoints className="mr-3 h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
                <div>
                 <p className="font-semibold">Explore Roadmaps</p>
@@ -94,8 +93,8 @@ export default function WelcomeUser() {
             </Button>
           </Link>
            <Link href="/content" passHref>
-            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group">
-              <Waypoints className="mr-3 h-5 w-5 text-primary group-hover:scale-110 transition-transform" /> {/* Consider a different icon like BookOpen */}
+            <Button variant="outline" className="w-full justify-start text-left h-auto py-3 group hover:bg-accent/50 hover:border-primary transition-all duration-200">
+              <BookOpenText className="mr-3 h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
                <div>
                 <p className="font-semibold">Browse Content</p>
                 <p className="text-sm text-muted-foreground">Find articles, tutorials, and more.</p>

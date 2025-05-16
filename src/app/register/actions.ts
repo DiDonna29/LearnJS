@@ -4,7 +4,7 @@
 /**
  * @fileOverview Server Actions for user registration post-auth.
  */
-import { dbAdmin } from '@/lib/firebase-admin-init'; // authAdmin not directly needed here
+import { dbAdmin } from '@/lib/firebase-admin-init'; 
 import { USER_ROLES } from '@/lib/constants';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { UserProfileData } from '@/lib/types';
@@ -29,32 +29,23 @@ export async function initializeUserProfile(
     const userDoc = await userRef.get();
 
     if (userDoc.exists) {
-      console.log(`User profile for ${userId} already exists. Updating timestamp.`);
+      console.log(`User profile for ${userId} already exists. Updating 'updatedAt' timestamp.`);
       await userRef.update({ updatedAt: FieldValue.serverTimestamp() });
-      return { success: true, message: 'User profile already initialized.' };
+      return { success: true, message: 'User profile already initialized and timestamp updated.' };
     }
 
-    const profileData: UserProfileData = {
-      id: userId,
+    const profileDataForFirestore = {
       email: email,
       displayName: displayName || email.split('@')[0] || 'New User',
       photoURL: null, 
       role: USER_ROLES.SIMPLE, 
       address: '', 
-      createdAt: FieldValue.serverTimestamp() as any, // Cast to any for serverTimestamp
-      updatedAt: FieldValue.serverTimestamp() as any, // Cast to any for serverTimestamp
-    };
-    
-    // Firestore set expects a plain object, FieldValue is handled by the SDK
-    // Remove the explicit Date conversion for createdAt/updatedAt for new docs
-    const { createdAt, updatedAt, ...dataToSet } = profileData;
-
-
-    await userRef.set({
-      ...dataToSet,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+      // id: userId, // Not needed directly in the data being set, as it's the doc ID
+    };
+    
+    await userRef.set(profileDataForFirestore);
 
     return { success: true, message: 'User profile initialized successfully in Firestore.' };
   } catch (error) {

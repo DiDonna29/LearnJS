@@ -1,7 +1,7 @@
 
 'use client';
 import Link from 'next/link';
-import { User as FirebaseUser, onAuthStateChanged, sendPasswordResetEmail, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { User as FirebaseUser, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,8 @@ import {
 import { updateUserProfile, deactivateAccount, fetchUserProfile, updateUserPasswordInternal } from './actions'; 
 import type { UserProfileData, UserProfileUpdateData } from '@/lib/types';
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+
 
 const mockUserDisplayDefaults = { 
   name: 'User Name',
@@ -35,6 +37,7 @@ const mockUserDisplayDefaults = {
 
 export default function ProfilePage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   
@@ -47,8 +50,8 @@ export default function ProfilePage() {
   // Form state for personal info
   const [displayName, setDisplayName] = useState('');
   const [address, setAddress] = useState('');
-  const [email, setEmail] = useState(''); // Email is read-only but displayed
-  const [photoURL, setPhotoURL] = useState(''); // Avatar URL
+  const [email, setEmail] = useState(''); 
+  const [photoURL, setPhotoURL] = useState(''); 
 
   // State for password change form
   const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
@@ -69,10 +72,19 @@ export default function ProfilePage() {
         setIsFetchingProfile(true);
         try {
           const fetchedProfile = await fetchUserProfile(user.uid); 
-          setProfileData(fetchedProfile);
-          setDisplayName(fetchedProfile?.displayName || user.displayName || mockUserDisplayDefaults.name);
-          setAddress(fetchedProfile?.address || mockUserDisplayDefaults.address);
-          setPhotoURL(fetchedProfile?.photoURL || user.photoURL || mockUserDisplayDefaults.avatarUrl);
+          if (fetchedProfile) {
+            setProfileData(fetchedProfile);
+            setDisplayName(fetchedProfile.displayName || user.displayName || mockUserDisplayDefaults.name);
+            setAddress(fetchedProfile.address || mockUserDisplayDefaults.address);
+            setPhotoURL(fetchedProfile.photoURL || user.photoURL || mockUserDisplayDefaults.avatarUrl);
+          } else {
+            // Handle case where profile might not be found but auth user exists
+            // This might happen if Firestore profile creation failed or is delayed
+            setDisplayName(user.displayName || mockUserDisplayDefaults.name);
+            setAddress(mockUserDisplayDefaults.address);
+            setPhotoURL(user.photoURL || mockUserDisplayDefaults.avatarUrl);
+            toast({ title: "Profile Incomplete", description: "Could not load full profile data. Some information might be missing.", variant: "default" });
+          }
         } catch (e) {
           console.error("Error fetching profile data:", e);
           toast({ title: "Error", description: "Could not load profile data.", variant: "destructive" });
@@ -88,13 +100,14 @@ export default function ProfilePage() {
         setAddress('');
         setEmail('');
         setPhotoURL('');
-        setShowPasswordChangeForm(false); // Hide password form on logout
+        setShowPasswordChangeForm(false); 
         setIsFetchingProfile(false);
+        router.push('/login'); // Redirect if not authenticated
       }
       setLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, router]);
 
 
   const handleSaveChanges = async () => {
@@ -106,19 +119,18 @@ export default function ProfilePage() {
       const updateData: UserProfileUpdateData = {
         displayName: displayName,
         address: address,
-        // photoURL can be added if upload functionality is implemented
+        photoURL: photoURL, 
       };
       const result = await updateUserProfile(authUser.uid, updateData);
 
       if (result.success) {
         toast({ title: "Profile Updated", description: result.message });
-        // Refresh profile data from server
         const refreshedProfile = await fetchUserProfile(authUser.uid);
-        setProfileData(refreshedProfile);
         if (refreshedProfile) {
-             setDisplayName(refreshedProfile.displayName || authUser.displayName || '');
+             setProfileData(refreshedProfile); // Update local profile state
+             setDisplayName(refreshedProfile.displayName || '');
              setAddress(refreshedProfile.address || '');
-             setPhotoURL(refreshedProfile.photoURL || authUser.photoURL || mockUserDisplayDefaults.avatarUrl);
+             setPhotoURL(refreshedProfile.photoURL || mockUserDisplayDefaults.avatarUrl);
         }
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
@@ -128,7 +140,7 @@ export default function ProfilePage() {
   
   const handleTogglePasswordForm = () => {
     setShowPasswordChangeForm(!showPasswordChangeForm);
-    setPasswordChangeError(null); // Clear previous errors
+    setPasswordChangeError(null); 
     setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
@@ -157,7 +169,6 @@ export default function ProfilePage() {
         const credential = EmailAuthProvider.credential(authUser.email!, currentPassword);
         await reauthenticateWithCredential(authUser, credential);
         
-        // Re-authentication successful, now call server action to update password
         const result = await updateUserPasswordInternal(authUser.uid, newPassword);
 
         if (result.success) {
@@ -175,6 +186,8 @@ export default function ProfilePage() {
         let errorMessage = "Failed to re-authenticate. Please check your current password.";
         if (reauthError.code === 'auth/wrong-password' || reauthError.code === 'auth/invalid-credential') {
           errorMessage = "Incorrect current password.";
+        } else if (reauthError.code === 'auth/too-many-requests') {
+           errorMessage = "Too many failed attempts. Please try again later.";
         }
         setPasswordChangeError(errorMessage);
         toast({ title: "Re-authentication Failed", description: errorMessage, variant: "destructive" });
@@ -189,7 +202,7 @@ export default function ProfilePage() {
       if (result.success) {
         toast({ title: "Account Deactivated", description: result.message, variant: "default" });
         await signOut(auth); 
-        router.push('/'); 
+        // router.push('/'); // No need to push here, onAuthStateChanged will handle redirect
       } else {
         toast({ title: "Deactivation Failed", description: result.message, variant: "destructive" });
       }
@@ -213,6 +226,8 @@ export default function ProfilePage() {
   }
 
   if (!authUser) {
+    // This should ideally not be reached if onAuthStateChanged redirects,
+    // but serves as a fallback.
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
         <User className="h-16 w-16 text-primary mb-4" />
@@ -238,7 +253,7 @@ export default function ProfilePage() {
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center gap-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src={displayAvatarFinal} alt={currentDisplayNameFinal} data-ai-hint={mockUserDisplayDefaults.dataAiHint}/>
+            <AvatarImage src={displayAvatarFinal} alt={currentDisplayNameFinal} data-ai-hint={profileData?.photoURL ? '' : mockUserDisplayDefaults.dataAiHint}/>
             <AvatarFallback>{currentDisplayNameFinal.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}</AvatarFallback>
           </Avatar>
           <div>
@@ -260,8 +275,8 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isUpdatingProfile}/>
+              <Label htmlFor="displayName">Full Name</Label>
+              <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isUpdatingProfile}/>
             </div>
             <div>
               <Label htmlFor="email">Email Address</Label>
@@ -272,9 +287,16 @@ export default function ProfilePage() {
               <Label htmlFor="address">Address</Label>
               <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} disabled={isUpdatingProfile} placeholder="e.g., 123 Main St, Anytown, USA" />
             </div>
+             {/* Placeholder for photoURL update - requires file upload logic 
+            <div>
+              <Label htmlFor="photoURL">Photo URL (Manual)</Label>
+              <Input id="photoURL" value={photoURL} onChange={(e) => setPhotoURL(e.target.value)} disabled={isUpdatingProfile} placeholder="https://example.com/avatar.png" />
+               <p className="text-xs text-muted-foreground mt-1">Actual photo upload requires more complex setup.</p>
+            </div>
+            */}
           </CardContent>
           <CardFooter className="justify-end">
-            <Button onClick={handleSaveChanges} disabled={isUpdatingProfile}>
+            <Button onClick={handleSaveChanges} disabled={isUpdatingProfile || isDeactivating || isChangingPassword}>
               {isUpdatingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
@@ -357,7 +379,7 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2"><LogOut className="text-destructive"/> Membership & Account</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(profileData?.role === 'PRO_USER') && (
+              {(profileData?.role === 'PRO') && ( // Assuming 'PRO' is the role string from your types
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" className="w-full" disabled={isUpdatingProfile || isDeactivating || isChangingPassword}>Cancel PRO Membership</Button>
@@ -391,8 +413,8 @@ export default function ProfilePage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleAccountDeactivation} className="bg-destructive hover:bg-destructive/90" disabled={isDeactivating}>
-                        {isDeactivating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Deactivate Account'}
+                      <AlertDialogAction onClick={handleAccountDeactivation} className="bg-destructive hover:bg-destructive/90" disabled={isDeactivating || isUpdatingProfile || isChangingPassword}>
+                        {isDeactivating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Deactivate My Account'}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -400,14 +422,14 @@ export default function ProfilePage() {
             </CardContent>
             <CardFooter>
                 <p className="text-xs text-muted-foreground">
-                    {(profileData?.role === 'SIMPLE_USER' || !profileData?.role) ? "Upgrade to PRO for full access and more features! (Mock)" : "Manage your subscription and account status here."}
+                    {(profileData?.role === 'SIMPLE' || !profileData?.role) ? "Upgrade to PRO for full access and more features! (Mock)" : "Manage your subscription and account status here."}
                 </p>
             </CardFooter>
           </Card>
         </div>
       </div>
        <p className="text-center text-muted-foreground mt-8">
-        Profile data is now fetched from and saved to Firestore. Ensure Firestore is set up and security rules are configured.
+        Ensure Firestore Admin SDK is correctly configured with environment variables for profile updates to work.
       </p>
     </div>
   );
