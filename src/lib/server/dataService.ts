@@ -17,7 +17,7 @@ const fallbackMockContent = fallbackMockContentConstants.map(c => ({ ...c, creat
 export async function getRoadmaps(): Promise<Roadmap[]> {
   console.log("dataService: Entered getRoadmaps function.");
   if (!dbAdmin) {
-    console.warn("dataService: Firestore Admin DB (dbAdmin) is not initialized in getRoadmaps. Returning mock roadmaps.");
+    console.warn("dataService: Firestore Admin DB (dbAdmin) is not initialized in getRoadmaps. THIS IS A CRITICAL CONFIGURATION ISSUE. Returning mock roadmaps as a fallback.");
     return [...mockRoadmaps]; // Return a copy
   }
   try {
@@ -49,8 +49,8 @@ export async function getRoadmaps(): Promise<Roadmap[]> {
     return roadmapsData;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`dataService: Error during Firestore operation in getRoadmaps: ${errorMessage}. Full error:`, error);
-    console.warn("dataService: Falling back to mock roadmaps due to Firestore error.");
+    console.error(`dataService: CRITICAL ERROR during Firestore operation in getRoadmaps: ${errorMessage}. This often indicates a problem with Firebase Admin SDK credentials (e.g., private key). Full error:`, error);
+    console.warn("dataService: Falling back to mock roadmaps due to Firestore error in getRoadmaps.");
     return [...mockRoadmaps]; // Return a copy
   }
 }
@@ -58,7 +58,7 @@ export async function getRoadmaps(): Promise<Roadmap[]> {
 export async function getContentItems(): Promise<ContentItem[]> {
   console.log("dataService: Entered getContentItems function.");
    if (!dbAdmin) {
-    console.warn("dataService: Firestore Admin DB (dbAdmin) is not initialized in getContentItems. Returning mock content items.");
+    console.warn("dataService: Firestore Admin DB (dbAdmin) is not initialized in getContentItems. THIS IS A CRITICAL CONFIGURATION ISSUE. Returning mock content items as a fallback.");
     return [...fallbackMockContent]; // Return a copy
   }
   try {
@@ -88,8 +88,8 @@ export async function getContentItems(): Promise<ContentItem[]> {
     return contentItemsData;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`dataService: Error during Firestore operation in getContentItems: ${errorMessage}. Full error:`, error);
-    console.warn("dataService: Falling back to mock content items due to Firestore error.");
+    console.error(`dataService: CRITICAL ERROR during Firestore operation in getContentItems: ${errorMessage}. This often indicates a problem with Firebase Admin SDK credentials (e.g., private key). Full error:`, error);
+    console.warn("dataService: Falling back to mock content items due to Firestore error in getContentItems.");
     return [...fallbackMockContent]; // Return a copy
   }
 }
@@ -99,7 +99,7 @@ export async function getContentItems(): Promise<ContentItem[]> {
 export async function getUserProfileServer(userId: string): Promise<UserProfileData | null> {
   console.log(`dataService: Entered getUserProfileServer for userId: ${userId}`);
   if (!dbAdmin) {
-    console.error("dataService: Firestore Admin DB (dbAdmin) is not initialized. Cannot fetch user profile (getUserProfileServer).");
+    console.error("dataService: Firestore Admin DB (dbAdmin) is not initialized. THIS IS A CRITICAL CONFIGURATION ISSUE. Cannot fetch user profile (getUserProfileServer).");
     return null;
   }
   if (!userId) {
@@ -132,7 +132,7 @@ export async function getUserProfileServer(userId: string): Promise<UserProfileD
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`dataService: Error fetching user profile for ${userId} from Firestore (getUserProfileServer): ${errorMessage}. Full error:`, error);
+    console.error(`dataService: CRITICAL ERROR fetching user profile for ${userId} from Firestore (getUserProfileServer): ${errorMessage}. This often indicates a problem with Firebase Admin SDK credentials. Full error:`, error);
     return null;
   }
 }
@@ -140,7 +140,7 @@ export async function getUserProfileServer(userId: string): Promise<UserProfileD
 export async function getRoadmapById(id: string): Promise<Roadmap | null> {
   console.log(`dataService: Entered getRoadmapById for id: ${id}`);
   if (!dbAdmin) {
-    console.warn(`dataService: Firestore Admin DB (dbAdmin) is not initialized. Cannot fetch roadmap ${id}. Attempting to find in mock data.`);
+    console.warn(`dataService: Firestore Admin DB (dbAdmin) is not initialized. THIS IS A CRITICAL CONFIGURATION ISSUE. Cannot fetch roadmap ${id}. Attempting to find in mock data.`);
     const mockResult = mockRoadmaps.find(r => r.id === id) || null;
     if (mockResult) console.log(`dataService: Found roadmap ${id} in mock data.`);
     else console.log(`dataService: Roadmap ${id} not found in mock data.`);
@@ -177,11 +177,10 @@ export async function getRoadmapById(id: string): Promise<Roadmap | null> {
     return mockResultOnNotFound;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`dataService: Error fetching roadmap ${id} from Firestore: ${errorMessage}. Falling back to mock data if available. Full error:`, error);
+    console.error(`dataService: CRITICAL ERROR fetching roadmap ${id} from Firestore: ${errorMessage}. This often indicates a problem with Firebase Admin SDK credentials. Falling back to mock data if available. Full error:`, error);
     const mockResultOnError = mockRoadmaps.find(r => r.id === id) || null;
     if (mockResultOnError) console.log(`dataService: Found roadmap ${id} in mock data after Firestore error.`);
     else console.log(`dataService: Roadmap ${id} not found in mock data after Firestore error.`);
     return mockResultOnError;
   }
 }
-
