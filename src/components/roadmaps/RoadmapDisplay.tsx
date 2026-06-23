@@ -1,5 +1,5 @@
 
-'use client'; // This component uses client-side interactions (Accordion)
+'use client';
 
 import {
   Accordion,
@@ -8,14 +8,15 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, GitFork, Layers, MonitorSmartphone, Server } from "lucide-react";
+import { CheckCircle2, GitFork, Layers, MonitorSmartphone, Server, ArrowUpRight } from "lucide-react";
 import type { Roadmap as RoadmapType, Course as CourseType } from "@/lib/types";
+import { motion } from "framer-motion";
 
 const iconMap: Record<string, React.ElementType> = {
   MonitorSmartphone,
   Server,
   Layers,
-  GitFork, // Added GitFork as a default if not specified
+  GitFork,
 };
 
 interface RoadmapDisplayProps {
@@ -24,53 +25,91 @@ interface RoadmapDisplayProps {
 
 export default function RoadmapDisplay({ roadmaps }: RoadmapDisplayProps) {
   if (!roadmaps || roadmaps.length === 0) {
-    return <p className="text-center text-muted-foreground">No roadmaps available at the moment.</p>;
+    return (
+      <div className="text-center py-20 bg-accent/30 rounded-2xl border border-dashed border-primary/20">
+        <p className="text-muted-foreground font-medium">No roadmaps available at the moment.</p>
+      </div>
+    );
   }
 
   return (
-    <Accordion type="multiple" className="w-full space-y-4">
-      {roadmaps.map((roadmap: RoadmapType) => {
-        const IconComponent = roadmap.iconName && iconMap[roadmap.iconName] ? iconMap[roadmap.iconName] : GitFork;
-        return (
-          <AccordionItem key={roadmap.id} value={roadmap.id} className="bg-card border rounded-lg shadow-sm hover:shadow-md transition-shadow">
-            <AccordionTrigger className="p-6 text-xl hover:no-underline">
-              <div className="flex items-center gap-3">
-                <IconComponent className="h-7 w-7 text-primary" />
-                {roadmap.title}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="p-6 pt-0">
-              <p className="text-muted-foreground mb-4">{roadmap.description}</p>
-              {roadmap.courses && roadmap.courses.length > 0 ? (
-                <Accordion type="single" collapsible className="w-full space-y-3">
-                  {roadmap.courses.map((course: CourseType) => (
-                    <AccordionItem key={course.id} value={course.id} className="border rounded-md bg-background/50">
-                      <AccordionTrigger className="px-4 py-3 text-lg font-medium hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          <GitFork className="h-5 w-5 text-primary/80" />
-                          {course.title}
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4 pt-0">
-                        <p className="text-sm text-muted-foreground mt-1 p-3 border rounded-sm bg-background">
-                          {course.description}
-                        </p>
-                         <div className="mt-3 text-right">
-                           <Button variant="link" size="sm" className="text-primary p-0 h-auto" disabled={!course.contentLink} href={course.contentLink || '#'} target="_blank" rel="noopener noreferrer">
-                              View Content {course.contentLink ? <CheckCircle2 className="ml-1 h-4 w-4" /> : '(Coming Soon)'}
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full space-y-6"
+    >
+      <Accordion type="multiple" className="space-y-4">
+        {roadmaps.map((roadmap: RoadmapType, rIndex: number) => {
+          const IconComponent = roadmap.iconName && iconMap[roadmap.iconName] ? iconMap[roadmap.iconName] : GitFork;
+          return (
+            <AccordionItem 
+              key={roadmap.id} 
+              value={roadmap.id} 
+              className="bg-card border-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 px-2"
+            >
+              <AccordionTrigger className="p-4 lg:p-6 text-xl hover:no-underline font-bold group">
+                <div className="flex items-center gap-4 text-left w-full overflow-hidden">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                    <IconComponent className="h-6 w-6 text-primary" />
+                  </div>
+                  <span className="truncate break-words pr-4">{roadmap.title}</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-6 pb-6 pt-0">
+                <div className="pl-16 space-y-6">
+                  <p className="text-muted-foreground text-lg leading-relaxed max-w-3xl border-l-2 border-primary/20 pl-4">
+                    {roadmap.description}
+                  </p>
+                  
+                  <div className="space-y-3 pt-4">
+                    <h4 className="text-sm font-bold uppercase tracking-widest text-primary/60 flex items-center gap-2">
+                      <Layers className="h-4 w-4" /> Path Modules
+                    </h4>
+                    
+                    {roadmap.courses && roadmap.courses.length > 0 ? (
+                      <div className="grid gap-3">
+                        {roadmap.courses.sort((a,b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((course: CourseType, cIndex: number) => (
+                          <motion.div
+                            key={course.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: cIndex * 0.05 }}
+                            className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-background hover:bg-accent/30 transition-colors overflow-hidden"
+                          >
+                            <div className="flex items-center gap-4 min-w-0">
+                              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+                                {cIndex + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <h5 className="font-bold truncate">{course.title}</h5>
+                                <p className="text-sm text-muted-foreground truncate max-w-md">
+                                  {course.description}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <Button variant="outline" size="sm" className="flex-shrink-0 rounded-full group-hover:bg-primary group-hover:text-primary-foreground transition-all" asChild disabled={!course.contentLink}>
+                              <Link href={course.contentLink || '#'} target="_blank">
+                                {course.contentLink ? (
+                                  <>Access <ArrowUpRight className="ml-1 h-3 w-3" /></>
+                                ) : (
+                                  'Soon'
+                                )}
+                              </Link>
                             </Button>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              ) : (
-                <p className="text-muted-foreground">No courses available for this roadmap yet.</p>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        );
-      })}
-    </Accordion>
+                          </motion.div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground italic text-sm">Curriculum under development.</p>
+                    )}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
+    </motion.div>
   );
 }
