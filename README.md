@@ -1,7 +1,6 @@
-
 # LearnJS - Anti-Slop JavaScript Mastery Platform 🚀
 
-LearnJS is a professional-grade learning platform designed to take developers from zero to fullstack JavaScript proficiency using high-end UI/UX standards and AI-driven personalization.
+LearnJS is a professional-grade learning platform designed to take developers from zero to fullstack JavaScript proficiency using high-end UI/UX standards, premium typography, and AI-driven personalization.
 
 ## 📖 App Overview
 
@@ -11,7 +10,7 @@ In a world filled with "slop" (generic, repetitive, low-quality content), LearnJ
 - **Premium UI/UX:** Following "Anti-Slop" principles—asymmetric modern layouts, Swiss-inspired typography (Geist), and balanced negative space.
 - **AI-Personalization:** Leverages Google Gemini (Genkit) to build custom learning paths based on your specific goals and experience.
 - **Interactive Roadmaps:** Visual step-by-step guides for Frontend, Backend, and Fullstack tracks.
-- **Containment & Stability:** Strictly structured responsive layouts that ensure performance and visual integrity across all devices.
+- **Containment & Stability:** Strictly structured responsive layouts that ensure performance and visual integrity across all devices. Elements never overflow their parents.
 
 ## 🛠 Tech Stack
 
@@ -20,7 +19,7 @@ In a world filled with "slop" (generic, repetitive, low-quality content), LearnJ
 - **UI Components:** Shadcn UI (Radix Primitives)
 - **Backend/Auth:** Firebase (Firestore + Authentication)
 - **AI Engine:** Genkit + Google Gemini 2.0
-- **Package Managers:** Support for `npm`, `yarn`, and `pnpm`.
+- **Package Managers:** Fully compatible with `npm`, `yarn`, and `pnpm`.
 
 ## 🚀 Installation & Setup
 
@@ -32,11 +31,11 @@ Ensure you have Node.js 18+ installed.
 git clone https://github.com/your-username/learnjs.git
 cd learnjs
 
-# Install dependencies
+# Install dependencies with your preferred manager
 pnpm install 
 # or 
 yarn install
-# or
+# or 
 npm install
 ```
 
@@ -63,6 +62,10 @@ FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE K
 ### 3. Run Development
 ```bash
 pnpm dev
+# or
+yarn dev
+# or
+npm run dev
 ```
 
 ## 🧠 Logic & Scalability
@@ -74,18 +77,18 @@ LearnJS doesn't just list tutorials; it organizes them into a **logical progress
 - **Deployment:** Industry standards for CI/CD and production environments.
 
 ### Scalability Roadmap (Future)
-1. **Interactive Quizzes:** Real-time assessment at the end of each module.
+1. **Interactive Quizzes:** Real-time assessment at the end of each module using Genkit.
 2. **Community Mentorship:** User-to-user review systems for code snippets.
-3. **Certification:** Verifiable blockchain or digital badges upon path completion.
-4. **Project Sandbox:** Integrated IDE (like Monaco) to practice JS directly in the browser.
+3. **Certification:** Verifiable digital badges upon path completion.
+4. **Project Sandbox:** Integrated Practice IDE to write JS directly in the browser.
 
 ## 📦 Production Readiness
 
 This application is ready for production deployment on platforms like **Vercel**, **Railway**, or **Google Cloud**. It includes:
-- **Middleware Security:** Integrated Auth checks.
-- **Server Actions:** Secure data mutations without API overhead.
-- **Optimized Assets:** Automatic image optimization via `next/image`.
-- **Full Responsive Audit:** Tested for high-density desktop displays and mobile-first interactions.
+- **Middleware Security:** Integrated Auth checks via Firebase.
+- **Server Actions:** Secure data mutations for profiles and AI paths.
+- **Optimized Assets:** Automatic image optimization via `next/image` with host configuration.
+- **Strict UI Boundaries:** Tested for high-density desktop displays and mobile-first interactions to prevent layout breaks.
 
 ---
 Created with ❤️ by LearnJS Team. Master the web, one line of JS at a time.
