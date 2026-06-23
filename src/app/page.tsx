@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import WelcomeUser from '@/components/home/WelcomeUser';
 import { motion } from 'framer-motion';
+import placeholderImages from '@/app/lib/placeholder-images.json';
 
 export default function HomePage() {
   const container = {
@@ -102,12 +102,12 @@ export default function HomePage() {
           >
             <div className="absolute -inset-4 bg-primary/5 rounded-3xl -rotate-2" />
             <Image
-              src="https://picsum.photos/seed/learnjs/800/600"
+              src={placeholderImages.hero.url}
               alt="Professional Code Workspace"
-              width={800}
-              height={600}
+              width={placeholderImages.hero.width}
+              height={placeholderImages.hero.height}
               className="relative rounded-2xl shadow-2xl border border-border grayscale-[0.2] hover:grayscale-0 transition-all duration-500"
-              data-ai-hint="developer workspace"
+              data-ai-hint={placeholderImages.hero.hint}
             />
           </motion.div>
         </div>

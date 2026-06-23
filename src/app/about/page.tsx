@@ -1,9 +1,9 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lightbulb, Users, DatabaseZap, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import placeholderImages from '@/app/lib/placeholder-images.json';
 
 export default function AboutPage() {
   return (
@@ -42,11 +42,11 @@ export default function AboutPage() {
           </CardContent>
         </Card>
         <Image 
-          src="https://placehold.co/500x350.png" 
+          src={placeholderImages.about.url} 
           alt="Illustration of a person learning on a computer"
-          data-ai-hint="learning computer"
-          width={500} 
-          height={350} 
+          data-ai-hint={placeholderImages.about.hint}
+          width={placeholderImages.about.width} 
+          height={placeholderImages.about.height} 
           className="rounded-lg shadow-xl object-cover"
         />
       </div>
@@ -85,4 +85,3 @@ export default function AboutPage() {
     </div>
   );
 }
-
